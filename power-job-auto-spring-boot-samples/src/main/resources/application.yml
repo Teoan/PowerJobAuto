@@ -1,0 +1,19 @@
+server:
+  port: 8080
+spring:
+  application:
+    name: powerJobAuto
+powerjob:
+  worker:
+    enabled: true
+    server-address: localhost:7700
+    app-name: ${spring.application.name}
+    password: 123456
+    protocol: http
+    port: 27773
+    allowLazyConnectServer: true
+    auto-register:
+      enabled: true
+      create: true
+      update: true
+      delete: true

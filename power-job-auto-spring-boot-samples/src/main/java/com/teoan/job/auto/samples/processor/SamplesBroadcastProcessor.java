@@ -1,6 +1,8 @@
 package com.teoan.job.auto.samples.processor;
 
 import com.teoan.job.auto.core.annotation.PowerJobAutoRegister;
+import tech.powerjob.common.enums.LogLevel;
+import tech.powerjob.common.enums.TimeExpressionType;
 import tech.powerjob.worker.core.processor.ProcessResult;
 import tech.powerjob.worker.core.processor.TaskContext;
 import tech.powerjob.worker.core.processor.TaskResult;
@@ -15,8 +17,15 @@ import java.util.List;
  */
 @PowerJobAutoRegister(jobName = "SamplesBroadcastProcessor",
         jobDescription = "BroadcastProcessor",
-        timeExpression = "*/10 * * * * *",
-        jobParams="{\"test1\":\"11111\"}")
+        timeExpressionType = TimeExpressionType.FIXED_DELAY,
+        timeExpression = "10000",
+        jobParams="{\"test1\":\"11111\"}",
+lifeCycle = "{\"start\":1714492800000,\"end\":1717776000000}",
+maxInstanceNum = 1,
+instanceRetryNum = 2,
+instanceTimeLimit = 3,
+maxWorkerCount = 4,
+logLevel = LogLevel.ERROR)
 public class SamplesBroadcastProcessor implements BroadcastProcessor {
 
     @Override

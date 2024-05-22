@@ -17,3 +17,5 @@ powerjob:
       create: true
       update: true
       delete: true
+    log:
+      type: ONLINE

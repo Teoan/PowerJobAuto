@@ -5,6 +5,7 @@ import com.alibaba.fastjson.JSON;
 import com.teoan.job.auto.core.annotation.PowerJobAutoRegister;
 import com.teoan.job.auto.core.client.PowerJobAutoClient;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationStartedEvent;
 import org.springframework.context.ApplicationContext;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.ObjectUtils;
 import tech.powerjob.client.PowerJobClient;
 import tech.powerjob.common.enums.ExecuteType;
+import tech.powerjob.common.enums.LogType;
 import tech.powerjob.common.enums.ProcessorType;
 import tech.powerjob.common.model.LifeCycle;
 import tech.powerjob.common.model.LogConfig;
@@ -56,6 +58,9 @@ public class JobAutoRegister {
     @Value("${powerjob.worker.auto-register.delete}")
     private Boolean delete;
 
+    @Value("${powerjob.worker.log.type}")
+    private LogType logType;
+
 
     /**
      * 监听事件实现自动注册逻辑
@@ -83,10 +88,14 @@ public class JobAutoRegister {
         log.info("[PowerJobAuto] start auto config task");
         PowerJobClient powerJobClient = jobAutoClient.getPowerJobClient();
         List<Object> beanList = new ArrayList<>(applicationContext.getBeansWithAnnotation(PowerJobAutoRegister.class).values());
-        SaveJobInfoRequest request = new SaveJobInfoRequest();
-        beanList.forEach(bean -> {
+        List<SaveJobInfoRequest> localJobInfoList = beanList.stream().map(bean -> {
+            SaveJobInfoRequest request = new SaveJobInfoRequest();
             PowerJobAutoRegister powerJobAutoRegister = bean.getClass().getAnnotation(PowerJobAutoRegister.class);
             setJobInfo(request, powerJobAutoRegister, bean);
+            return request;
+        }).collect(Collectors.toList());
+        // 创建或更新
+        localJobInfoList.forEach(request -> {
             if (ObjectUtils.isEmpty(request.getId()) && create) {
                 ResultDTO<Long> longResultDTO = powerJobClient.saveJob(request);
                 log.info("[PowerJobAuto] save job info:{}", JSON.toJSONString(longResultDTO));
@@ -97,7 +106,7 @@ public class JobAutoRegister {
         if (delete) {
             List<JobInfoDTO> jobInfoList = jobAutoClient.getJobInfoList();
             // 本地的任务名称列表
-            Set<String> localJobNameSet = beanList.stream().map(bean -> bean.getClass().getAnnotation(PowerJobAutoRegister.class).jobName()).collect(Collectors.toSet());
+            Set<String> localJobNameSet = localJobInfoList.stream().map(SaveJobInfoRequest::getJobName).collect(Collectors.toSet());
             jobInfoList.forEach(jobInfoDTO -> {
                 if (!localJobNameSet.contains(jobInfoDTO.getJobName())) {
                     powerJobClient.deleteJob(jobInfoDTO.getId());
@@ -126,8 +135,13 @@ public class JobAutoRegister {
      */
     private void setJobInfo(SaveJobInfoRequest request, PowerJobAutoRegister powerJobAutoRegister, Object bean) {
         request.setEnable(true);
-        request.setId(jobAutoClient.getJobId(powerJobAutoRegister.jobName()));
-        request.setJobName(powerJobAutoRegister.jobName());
+        //任务名为空则使用类名
+        String jobName = powerJobAutoRegister.jobName();
+        if(StringUtils.isBlank(jobName)){
+            jobName = bean.getClass().getSimpleName();
+        }
+        request.setId(jobAutoClient.getJobId(jobName));
+        request.setJobName(jobName);
         request.setJobDescription(powerJobAutoRegister.jobDescription());
         request.setTimeExpressionType(powerJobAutoRegister.timeExpressionType());
         request.setTimeExpression(powerJobAutoRegister.timeExpression());
@@ -148,6 +162,10 @@ public class JobAutoRegister {
         logConfig.setLevel(powerJobAutoRegister.logLevel().getV());
         logConfig.setLoggerName(powerJobAutoRegister.loggerName());
         logConfig.setType(powerJobAutoRegister.logType().getV());
+        // 配置文件中的日志类型优先级高
+        if(!ObjectUtils.isEmpty(logType)){
+            logConfig.setType(logType.getV());
+        }
         request.setLogConfig(logConfig);
     }
 
